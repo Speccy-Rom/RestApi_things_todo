@@ -19,6 +19,8 @@ require (
 	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spf13/viper v1.8.1 // indirect
+	github.com/stretchr/objx v0.3.0 // indirect
+	github.com/stretchr/testify v1.7.0 // indirect
 	github.com/ugorji/go v1.2.6 // indirect
 	github.com/zhashkevych/go-sqlxmock v1.5.1 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect

@@ -4,9 +4,9 @@ import (
 	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/golang/mock/gomock"
-	"github.com/magiconair/properties/assert"
 	"github.com/speccy-rom/RestApi_things_todo/pkg/service"
 	service_mocks "github.com/speccy-rom/RestApi_things_todo/pkg/service/mocks"
+	"github.com/stretchr/testify/assert"
 	"net/http/httptest"
 	"testing"
 )
@@ -53,7 +53,6 @@ func TestHandler_userIdentity(t *testing.T) {
 			expectedStatusCode:   401,
 			expectedResponseBody: `{"message":"invalid auth header"}`,
 		},
-
 		{
 			name:                 "Empty Token",
 			headerName:           "Authorization",
@@ -63,7 +62,6 @@ func TestHandler_userIdentity(t *testing.T) {
 			expectedStatusCode:   401,
 			expectedResponseBody: `{"message":"token is empty"}`,
 		},
-
 		{
 			name:        "Parse Error",
 			headerName:  "Authorization",
@@ -106,6 +104,45 @@ func TestHandler_userIdentity(t *testing.T) {
 			// Asserts
 			assert.Equal(t, w.Code, test.expectedStatusCode)
 			assert.Equal(t, w.Body.String(), test.expectedResponseBody)
+		})
+	}
+}
+
+func TestGetUserId(t *testing.T) {
+	var getContext = func(id int) *gin.Context {
+		ctx := &gin.Context{}
+		ctx.Set(userCtx, id)
+		return ctx
+	}
+
+	testTable := []struct {
+		name       string
+		ctx        *gin.Context
+		id         int
+		shouldFail bool
+	}{
+		{
+			name: "Ok",
+			ctx:  getContext(1),
+			id:   1,
+		},
+		{
+			ctx:        &gin.Context{},
+			name:       "Empty",
+			shouldFail: true,
+		},
+	}
+
+	for _, test := range testTable {
+		t.Run(test.name, func(t *testing.T) {
+			id, err := getUserId(test.ctx)
+			if test.shouldFail {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			assert.Equal(t, id, test.id)
 		})
 	}
 }

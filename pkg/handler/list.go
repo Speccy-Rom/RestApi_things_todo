@@ -38,7 +38,6 @@ func (h *Handler) createList(c *gin.Context) {
 		newErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
-
 	c.JSON(http.StatusOK, map[string]interface{}{
 		"id": id,
 	})

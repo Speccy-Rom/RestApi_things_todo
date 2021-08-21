@@ -2,9 +2,10 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"github.com/speccy-rom/RestApi_things_todo"
+	"github.com/stretchr/testify/assert"
 	sqlmock "github.com/zhashkevych/go-sqlxmock"
-	"reflect"
 	"testing"
 )
 
@@ -21,47 +22,40 @@ func TestTodoItemPostgres_Create(t *testing.T) {
 		listId int
 		item   todo.TodoItem
 	}
+	type mockBehavior func(args args, id int)
+
 	tests := []struct {
 		name    string
-		mock    func()
+		mock    mockBehavior
 		input   args
 		want    int
 		wantErr bool
 	}{
 		{
 			name: "Ok",
-			mock: func() {
+			input: args{
+				listId: 1,
+				item: todo.TodoItem{
+					Title:       "test title",
+					Description: "test description",
+				},
+			},
+			want: 2,
+			mock: func(args args, id int) {
 				mock.ExpectBegin()
 
-				rows := sqlmock.NewRows([]string{"id"}).AddRow(1)
+				rows := sqlmock.NewRows([]string{"id"}).AddRow(id)
 				mock.ExpectQuery("INSERT INTO todo_items").
-					WithArgs("title", "description").WillReturnRows(rows)
+					WithArgs(args.item.Title, args.item.Description).WillReturnRows(rows)
 
-				mock.ExpectExec("INSERT INTO lists_items").WithArgs(1, 1).
+				mock.ExpectExec("INSERT INTO lists_items").WithArgs(args.listId, id).
 					WillReturnResult(sqlmock.NewResult(1, 1))
 
 				mock.ExpectCommit()
 			},
-			input: args{
-				listId: 1,
-				item: todo.TodoItem{
-					Title:       "title",
-					Description: "description",
-				},
-			},
-			want: 1,
 		},
 		{
 			name: "Empty Fields",
-			mock: func() {
-				mock.ExpectBegin()
-
-				mock.ExpectQuery("INSERT INTO todo_items").
-					WithArgs("", "description").WillReturnError(sqlmock.ErrCancelled)
-
-				mock.ExpectRollback()
-
-			},
 			input: args{
 				listId: 1,
 				item: todo.TodoItem{
@@ -69,22 +63,54 @@ func TestTodoItemPostgres_Create(t *testing.T) {
 					Description: "description",
 				},
 			},
+			mock: func(args args, id int) {
+				mock.ExpectBegin()
+
+				rows := sqlmock.NewRows([]string{"id"}).AddRow(id).RowError(0, errors.New("insert error"))
+				mock.ExpectQuery("INSERT INTO todo_items").
+					WithArgs(args.item.Title, args.item.Description).WillReturnRows(rows)
+
+				mock.ExpectRollback()
+			},
+			wantErr: true,
+		},
+		{
+			name: "Failed 2nd Insert",
+			input: args{
+				listId: 1,
+				item: todo.TodoItem{
+					Title:       "title",
+					Description: "description",
+				},
+			},
+			mock: func(args args, id int) {
+				mock.ExpectBegin()
+
+				rows := sqlmock.NewRows([]string{"id"}).AddRow(id)
+				mock.ExpectQuery("INSERT INTO todo_items").
+					WithArgs(args.item.Title, args.item.Description).WillReturnRows(rows)
+
+				mock.ExpectExec("INSERT INTO lists_items").WithArgs(args.listId, id).
+					WillReturnError(errors.New("insert error"))
+
+				mock.ExpectRollback()
+			},
 			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.mock()
+			tt.mock(tt.input, tt.want)
 
 			got, err := r.Create(tt.input.listId, tt.input.item)
-			if err != nil && !tt.wantErr {
-				t.Fatal(err)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
 			}
-
-			if err == nil && got != tt.want {
-				t.Fatalf("Results mismatch; want %d, got %d", tt.want, got)
-			}
+			assert.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
 }
@@ -150,13 +176,13 @@ func TestTodoItemPostgres_GetAll(t *testing.T) {
 			tt.mock()
 
 			got, err := r.GetAll(tt.input.userId, tt.input.listId)
-			if err != nil && !tt.wantErr {
-				t.Fatal(err)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
 			}
-
-			if err == nil && !reflect.DeepEqual(got, tt.want) {
-				t.Fatalf("Results mismatch; want %v, got %v", tt.want, got)
-			}
+			assert.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
 }
@@ -202,7 +228,7 @@ func TestTodoItemPostgres_GetById(t *testing.T) {
 				rows := sqlmock.NewRows([]string{"id", "title", "description", "done"})
 
 				mock.ExpectQuery("SELECT (.+) FROM todo_items ti INNER JOIN lists_items li on (.+) INNER JOIN users_lists ul on (.+) WHERE (.+)").
-					WithArgs(1, 1).WillReturnRows(rows)
+					WithArgs(404, 1).WillReturnRows(rows)
 			},
 			input: args{
 				itemId: 404,
@@ -217,13 +243,13 @@ func TestTodoItemPostgres_GetById(t *testing.T) {
 			tt.mock()
 
 			got, err := r.GetById(tt.input.userId, tt.input.itemId)
-			if err != nil && !tt.wantErr {
-				t.Fatal(err)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
 			}
-
-			if err == nil && !reflect.DeepEqual(got, tt.want) {
-				t.Fatalf("Results mismatch; want %v, got %v", tt.want, got)
-			}
+			assert.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
 }
@@ -277,9 +303,12 @@ func TestTodoItemPostgres_Delete(t *testing.T) {
 			tt.mock()
 
 			err := r.Delete(tt.input.userId, tt.input.itemId)
-			if err != nil && !tt.wantErr {
-				t.Fatal(err)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
+			assert.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
 }
@@ -352,14 +381,13 @@ func TestTodoItemPostgres_Update(t *testing.T) {
 		{
 			name: "OK_NoInputFields",
 			mock: func() {
-				mock.ExpectExec("UPDATE todo_items ti SET (.+) FROM lists_items li, users_lists ul WHERE (.+)").
+				mock.ExpectExec("UPDATE todo_items ti SET FROM lists_items li, users_lists ul WHERE (.+)").
 					WithArgs(1, 1).WillReturnResult(sqlmock.NewResult(0, 1))
 			},
 			input: args{
 				itemId: 1,
 				userId: 1,
 			},
-			wantErr: true,
 		},
 	}
 
@@ -368,9 +396,12 @@ func TestTodoItemPostgres_Update(t *testing.T) {
 			tt.mock()
 
 			err := r.Update(tt.input.userId, tt.input.itemId, tt.input.input)
-			if err != nil && !tt.wantErr {
-				t.Fatal(err)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
+			assert.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
 }

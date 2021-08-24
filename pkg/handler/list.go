@@ -1,10 +1,11 @@
 package handler
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/speccy-rom/RestApi_things_todo"
 	"net/http"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
+	"github.com/speccy-rom/RestApi_things_todo"
 )
 
 // @Summary Create todo list
@@ -38,6 +39,7 @@ func (h *Handler) createList(c *gin.Context) {
 		newErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
+
 	c.JSON(http.StatusOK, map[string]interface{}{
 		"id": id,
 	})

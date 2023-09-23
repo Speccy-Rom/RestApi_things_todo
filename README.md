@@ -26,4 +26,3 @@ make build && make run
 ```
 make migrate
 ```
-
